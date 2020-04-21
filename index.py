@@ -107,7 +107,7 @@ class VSM:
                 self.dictionary[term] = PostingList()
             # Insert into appropriate PostingList
             # if same term and docID, do not increment PL.size
-            if term == tokens_list[i-1][0] and curr_tuple[0] == tokens_list[i-1][1][0]:
+            if i > 0 and term == tokens_list[i-1][0] and curr_tuple[0] == tokens_list[i-1][1][0]:
                 self.dictionary[term].insert(curr_tuple[0], curr_tuple[1], curr_tuple[2], False)
             else:
                 self.dictionary[term].insert(curr_tuple[0], curr_tuple[1], curr_tuple[2])
@@ -138,7 +138,7 @@ class VSM:
                 # decrease the maxInt value by factor 10
                 # as long as the OverflowError occurs.
                 try:
-                    #csv.field_size_limit(maxInt)
+                    csv.field_size_limit(maxInt)
                     break
                 except OverflowError:
                     maxInt = int(maxInt / 10)
