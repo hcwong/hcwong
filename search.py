@@ -123,6 +123,7 @@ def cosine_score(tokens_arr, relevant_docids):
     union_of_relevant_doc_top_terms = set(union_of_relevant_doc_top_terms) # all unique now, all are processed
 
     # Step 2: Obtain PostingList of interest
+
     is_entirely_phrasal = True # if False, should perform Rocchio for Query Refinement
     for term in tokens_arr:
         # Obtain the first vector, representing all the document(s) containing the term
@@ -149,6 +150,8 @@ def cosine_score(tokens_arr, relevant_docids):
 
         # Step 3: Obtain the query vector's (possibly refined) value for pointwise multiplication
         query_term_weight = get_query_weight(posting_list.unique_docids, term_frequencies[term]) # before/without Rocchio
+
+
         # Query Refinement: Rocchio Algorithm (Part 1: common terms with query)
         # Want to use given relevant documents to get entry of the term in the refined query vector
         if (query_type == "FREETEXT"):
@@ -265,6 +268,7 @@ def get_query_weight(df, tf):
     """
     N = len(ALL_DOC_IDS)
     # df, tf and N are all guranteed to be at least 1, so no error is thrown here
+
     return (1 + math.log(tf, 10)) * math.log(N/df, 10)
 
 def find_term(term):
@@ -494,11 +498,22 @@ def parse_boolean_query(terms, relevant_docids):
 
 def parse_free_text_query(terms, relevant_docids):
     # TODO: See below (delete once done)
-    #Expected to add query expansion, after process(query) is done
-    expanded_terms = query_expansion(terms)
-    terms = expanded_terms
-    terms = process(terms)
-    res = cosine_score(terms, relevant_docids)
+    #Take in list of original, unexpanded query terms
+    #Calculate the query_term_weight of the individual terms from the original query
+    #Query terms with high weight >= 1.2, would be further expanded and their synonyms will be added to the original term
+    #Process the expanded list of query terms
+
+    term_frequencies = Counter(terms)
+    expanded_terms = []
+    for t in terms:
+        expanded_terms.append(t)
+        posting_list = find_term(t)
+        query_term_weight = get_query_weight(posting_list.unique_docids, term_frequencies[t])
+        if query_term_weight >= 1.2 :
+            expanded_terms.extend(query_expansion(t, terms))
+
+    expanded_terms = process(expanded_terms)
+    res = cosine_score(expanded_terms, relevant_docids)
     return res
 
 def split_query(query):
@@ -541,26 +556,21 @@ def split_query(query):
     # Weed out empty strings
     return [term for term in terms if term], is_boolean_query
 
-def query_expansion(query):
-    #Take in a list containing all the query words
-    #Remove stop words from the list
-    #Find the synonyms of each word and append them to a set, since some of the synonyms might be repetitive
-    #Add the set of synonyms to list of extended query words
-    #Return the expanded_query
+def query_expansion(query, unexpanded_tokens_arr):
+    #Take in a word from the query
+    #Expand on the synonyms of the word
+    #return the set of synonyms
 
     stop_words = set(stopwords.words('english'))
-    query_words = [word for word in query if not word in stop_words]
-    expanded_query = []
-    for word in query_words:
-        expanded_query.append(word)
-        syn_set = set()
-        for s in wordnet.synsets(word):
-            for l in s.lemmas():
-                if word != l.name():
-                    syn_set.add(l.name())
-        expanded_query.extend(syn_set)
 
-    return expanded_query
+    syn_set = set()
+
+    for s in wordnet.synsets(query):
+        for l in s.lemmas():
+            if l.name() not in unexpanded_tokens_arr:
+                syn_set.add(l.name())
+
+    return syn_set
 # Below are the code provided in the original Homework search.py file, with edits to run_search to use our implementation
 
 def usage():
