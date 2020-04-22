@@ -119,6 +119,7 @@ def cosine_score(tokens_arr, relevant_docids):
     processed_terms = [stem_word(w.strip().lower()) for w in tokens_arr]
     for t in processed_terms:
         union_of_relevant_doc_top_terms.append(t)
+
     union_of_relevant_doc_top_terms = set(union_of_relevant_doc_top_terms) # all unique now, all are processed
 
     # Step 2: Obtain PostingList of interest
@@ -154,7 +155,9 @@ def cosine_score(tokens_arr, relevant_docids):
             # We are doing query refinement for this current term; no need to do again later: remove it first!
             # current term is not processed -> Need to process first to compare
             processed_term = stem_word(term.strip().lower())
-            union_of_relevant_doc_top_terms.remove(processed_term)
+            if processed_term in union_of_relevant_doc_top_terms:
+                union_of_relevant_doc_top_terms.remove(processed_term)
+
             # calculate the centroid value for tf for calculating refined query value for this term
             # Note: documents can have a 0 contribution for particular terms if they don't contain them
             accumulated_value = 0
@@ -492,7 +495,8 @@ def parse_boolean_query(terms, relevant_docids):
 def parse_free_text_query(terms, relevant_docids):
     # TODO: See below (delete once done)
     #Expected to add query expansion, after process(query) is done
-    #query = query_expansion(process(query))
+    expanded_terms = query_expansion(terms)
+    terms = expanded_terms
     terms = process(terms)
     res = cosine_score(terms, relevant_docids)
     return res
@@ -538,29 +542,25 @@ def split_query(query):
     return [term for term in terms if term], is_boolean_query
 
 def query_expansion(query):
-    #Split the query into words
-    #Remove stop words
+    #Take in a list containing all the query words
+    #Remove stop words from the list
     #Find the synonyms of each word and append them to a set, since some of the synonyms might be repetitive
     #Add the set of synonyms to list of extended query words
-    #Convert the extended query list to extende query string
-    #Return the string
+    #Return the expanded_query
 
-    query_words = query.split()
     stop_words = set(stopwords.words('english'))
-    query_words = [word for word in query_words if not word in stop_words]
+    query_words = [word for word in query if not word in stop_words]
     expanded_query = []
     for word in query_words:
         expanded_query.append(word)
         syn_set = set()
         for s in wordnet.synsets(word):
             for l in s.lemmas():
-                syn_set.add(l.name())
+                if word != l.name():
+                    syn_set.add(l.name())
         expanded_query.extend(syn_set)
 
-    new_query = ' '.join([str(word.lower()) for word in expanded_query])
-
-
-    return new_query
+    return expanded_query
 # Below are the code provided in the original Homework search.py file, with edits to run_search to use our implementation
 
 def usage():
