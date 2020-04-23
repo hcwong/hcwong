@@ -527,7 +527,17 @@ def parse_free_text_query(terms, relevant_docids):
     expanded_terms = []
     for t in terms:
         expanded_terms.append(t)
-        posting_list = find_term(t)
+        # this is the same way posting list for individual phrases/words have been obtained in cosine_score
+        # Weight for individual queries needs to be measured here as well in order to check which quey words/ phrases are the more important ones and
+        # are worth expanding
+        if " " in t:
+            posting_list = perform_phrase_query(t)
+        else:
+            posting_list = find_term(t)
+
+        if posting_list is None:
+            continue
+
         query_term_weight = get_query_weight(posting_list.unique_docids, term_frequencies[t])
         if query_term_weight >= 1.2 :
             expanded_terms.extend(query_expansion(t, terms))
