@@ -121,7 +121,6 @@ def cosine_score(tokens_arr, relevant_docids):
 
 
     # Step 2: Obtain PostingList of interest
-
     is_entirely_phrasal = True # if False, should perform Rocchio for Query Refinement
     for term in tokens_arr:
         # Document IDs and zone/field types are nicely reflected in the term's PostingList
@@ -134,16 +133,17 @@ def cosine_score(tokens_arr, relevant_docids):
         query_type = "YET DECIDED"
         if " " in term:
             query_type = "PHRASAL"
-            posting_list_object = perform_phrase_query(term) # do merging of PostingLists
-            if posting_list_object is not None:
-                posting_list = posting_list_object.postings
+            posting_list = perform_phrase_query(term) # do merging of PostingLists
+
         else:
             query_type = "FREETEXT"
             posting_list = find_term(term)
             is_entirely_phrasal = False # should perform Rocchio
+
         if posting_list is None:
             # Invalid query term: Move on to next
             continue
+
 
         # Step 3: Obtain the query vector's value for pointwise multiplication (Perform Relevance Feedback, if needed)
         query_term_weight = get_query_weight(posting_list.unique_docids, term_frequencies[term]) # before/without Rocchio
@@ -262,7 +262,9 @@ def remove_term_processed_from_set(term, union_of_relevant_doc_top_terms):
     Removes the processed version of the term from a set that stores this processed term
     """
     processed_term = stem_word(term.strip().lower())
-    union_of_relevant_doc_top_terms.remove(processed_term)
+    if processed_term in union_of_relevant_doc_top_terms:
+        union_of_relevant_doc_top_terms.remove(processed_term)
+
 
 def calculate_relevant_centroid_weight(relevant_docids, posting_list):
     """
