@@ -36,8 +36,8 @@ top K most common terms, which will be used for optimisation. We will then parse
 Firstly, the parse_query function takes in the query and calls split_query to obtain words to process into terms later on. This process also determines the search 
 type. Here, in split_query, we are splitting the original query given from the query file into either words of length 1, or phrases (identified by double 
 inverted commas in a phrasal query). In the process, if we encounter the Boolean Retrival keyword "AND", we know this is a boolean query and set is_boolean_query 
-to True. Otherwise, we will process this term in a free-text query. Please note that phrasal queries will be performed as part of processing either boolean 
-and/or free-text queries (otherwise, we will assume it is a free-text query first, then process it as a phrasal query). A phrasal query can easily be 
+to True. Otherwise, we will process this term in a free-text query. Please note that phrasal queries will be performed as part of processing in boolean 
+and/or(otherwise, we will assume it is a free-text query first, then process it as a phrasal query). A phrasal query can easily be 
 identified by spaces (" ") in its term, because split_query produces the respective phrases whenever it encounters the double inverted commas. At the end of
 this function, we will have a sequence of words and phrases. Once done, the free-text or boolean query (which contains any phrasal queries) is then executed.
 
