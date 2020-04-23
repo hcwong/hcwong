@@ -524,7 +524,6 @@ def parse_free_text_query(terms, relevant_docids):
     #Process the expanded list of query terms
 
     term_frequencies = Counter(terms)
-    print(term_frequencies)
     expanded_terms = []
     for t in terms:
         expanded_terms.append(t)
