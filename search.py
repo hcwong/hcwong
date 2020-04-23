@@ -542,7 +542,7 @@ def parse_free_text_query(terms, relevant_docids):
 
         #We are assuming free-text queries will not include phrasal queries (ie. phrases incased in " ")
         if " " in t:
-            continue
+            posting_list = perform_phrase_query(t)
         else:
             posting_list = find_term(t)
         if posting_list is None:

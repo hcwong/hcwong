@@ -50,9 +50,8 @@ queries, we classify them (by default as free-text, otherwise with whatever it i
 1. Free-text queries
 
 For free-text queries, query expansion is implemented. We first take in the list of words in the query terms and measure the query term weight of each individual words/
-phrases. We are assuming that under phrasal queries (ie. phrases incased in " "), will not be part of the original free-text queries. If the query term weight is more than or equal to a particular threshold, query expansion is done on it. This is to avoid query expansion on every word, and only
-to be done on the important words. Once the query is expanded, the list of words/phrases are then processed. Do note that even though the orignal free-text queries might not contain
-phrasal queries, the expanded queries might contain synonyms that are phrases. For example: synonym expansion of the word 'quiet' could be 'pipe down'. 
+phrases. If the query term weight is more than or equal to a particular threshold, query expansion is done on it. This is to avoid query expansion on every word, and only
+to be done on the important words. Once the query is expanded, the list of words/phrases are then processed. 
 
 We process the words/phrases into final index terms by filtering through punctuations and removing some of them like apostrophes. As 
 this process can possibly generate additional unneeded spaces, we will then remove these unnecessary spaces to prevent them from being detected as a term. Next, 
