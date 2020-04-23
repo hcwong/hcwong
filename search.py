@@ -80,8 +80,8 @@ def stem_query(arr):
 
 def boost_score_based_on_field(field, score):
     # TODO: Decide on an appropriate boost value
-    court_boost = 4
-    title_boost = 10
+    court_boost = 1.3
+    title_boost = 2
     if field == Field.TITLE:
         return score * title_boost
     elif field == Field.COURT:
@@ -115,8 +115,10 @@ def cosine_score(tokens_arr, relevant_docids):
     scores = {} # to store all cosine similarity scores for each query term
     term_frequencies = Counter(tokens_arr) # the query's count vector for every of its terms, to obtain data for pointwise multiplication
     # Set of all relevant documents' top K (already processed) terms, and query's processed terms
+
     # All terms inside are ALREADY PROCESSED aka filtered for punctuations, casefolded to lowercase, stemmed
     union_of_relevant_doc_top_terms = obtain_all_cos_score_terms(relevant_docids, tokens_arr)
+
 
     # Step 2: Obtain PostingList of interest
     is_entirely_phrasal = True # if False, should perform Rocchio for Query Refinement
@@ -131,23 +133,24 @@ def cosine_score(tokens_arr, relevant_docids):
         query_type = "YET DECIDED"
         if " " in term:
             query_type = "PHRASAL"
-            posting_list_object = perform_phrase_query(term) # do merging of PostingLists
-            if posting_list_object is not None:
-                posting_list = posting_list_object.postings
+            posting_list = perform_phrase_query(term) # do merging of PostingLists
+
         else:
             query_type = "FREETEXT"
             posting_list = find_term(term)
             is_entirely_phrasal = False # should perform Rocchio
+
         if posting_list is None:
             # Invalid query term: Move on to next
             continue
+
 
         # Step 3: Obtain the query vector's value for pointwise multiplication (Perform Relevance Feedback, if needed)
         query_term_weight = get_query_weight(posting_list.unique_docids, term_frequencies[term]) # before/without Rocchio
 
         # Query Refinement: Rocchio Algorithm (Part 1: common terms with query)
         # Want to use given relevant documents to get entry of the term in the refined query vector
-        if (query_type == "FREETEXT"):
+        if (query_type == "FREETEXT") and (len(relevant_docids) != 0):
             # We are doing query refinement for this current term; no need to do again later: remove it first!
             # current term is not processed -> Need to process first to compare
             remove_term_processed_from_set(term, union_of_relevant_doc_top_terms)
@@ -173,7 +176,7 @@ def cosine_score(tokens_arr, relevant_docids):
     # Step 5 (Optional): Rocchio Part 2 (if needed; for terms in overall top_K yet to be considered)
     # We begin with an initial query vector value of 0. And then we add the averaged lawyer-marked-relevant documents' 'centroid' value
     # Note the terms here are already processed; we need to use find_already_processed_term(term) function
-    if (is_entirely_phrasal == False):
+    if (is_entirely_phrasal == False) and len(relevant_docids) != 0:
         # for terms that have not been covered, but need to be considered by Rocchio
         while (len(union_of_relevant_doc_top_terms) > 0):
 
@@ -259,7 +262,9 @@ def remove_term_processed_from_set(term, union_of_relevant_doc_top_terms):
     Removes the processed version of the term from a set that stores this processed term
     """
     processed_term = stem_word(term.strip().lower())
-    union_of_relevant_doc_top_terms.remove(processed_term)
+    if processed_term in union_of_relevant_doc_top_terms:
+        union_of_relevant_doc_top_terms.remove(processed_term)
+
 
 def calculate_relevant_centroid_weight(relevant_docids, posting_list):
     """
@@ -283,6 +288,7 @@ def get_query_weight(df, tf):
     """
     N = len(ALL_DOC_IDS)
     # df, tf and N are all guranteed to be at least 1, so no error is thrown here
+
     return (1 + math.log(tf, 10)) * math.log(N/df, 10)
 
 def find_term(term):
@@ -443,16 +449,19 @@ def get_ranking_for_boolean_query(posting_list, relevant_docids):
     Example: If the resultant posting list has two postings for doc_id xxx, with fields COURT and CONTENT
     Then the resultant score is 11
     """
-    relevant_score = 100000
-    title_score = 20
-    court_score = 10
-    content_score = 1
+    relevant_score = 50
+    title_score = 5
+    court_score = 4
+    date_score = 3
+    content_score = 2
 
     def get_boolean_query_scores(field):
         if field == Field.TITLE:
             return title_score
         elif field == Field.COURT:
             return court_score
+        elif field == Field.DATE_POSTED:
+            return date_score
         else:
             return content_score
 
@@ -460,13 +469,13 @@ def get_ranking_for_boolean_query(posting_list, relevant_docids):
     for posting in posting_list.postings:
         score = get_boolean_query_scores(posting.field)
         if posting.doc_id not in scores:
-            scores[posting.doc_id] = score
+            scores[posting.doc_id] = len(posting.positions) * score
         else:
-            scores[posting.doc_id] += score
+            scores[posting.doc_id] += len(posting.positions) * score
 
     # Add to the ones judged relevant by humans
     for relevant_docid in relevant_docids:
-        if relevant_docid in scores:
+        if relevant_docid not in scores:
             scores[relevant_docid] = relevant_score
         else:
             scores[relevant_docid] += relevant_score
@@ -512,10 +521,32 @@ def parse_boolean_query(terms, relevant_docids):
 
 def parse_free_text_query(terms, relevant_docids):
     # TODO: See below (delete once done)
-    #Expected to add query expansion, after process(query) is done
-    #query = query_expansion(process(query))
-    terms = process(terms)
-    res = cosine_score(terms, relevant_docids)
+    #Take in list of original, unexpanded query terms
+    #Calculate the query_term_weight of the individual terms from the original query
+    #Query terms with high weight >= 1.2, would be further expanded and their synonyms will be added to the original term
+    #Process the expanded list of query terms
+
+    term_frequencies = Counter(terms)
+    expanded_terms = []
+    for t in terms:
+        expanded_terms.append(t)
+        # this is the same way posting list for individual phrases/words have been obtained in cosine_score
+        # Weight for individual queries needs to be measured here as well in order to check which quey words/ phrases are the more important ones and
+        # are worth expanding
+        if " " in t:
+            posting_list = perform_phrase_query(t)
+        else:
+            posting_list = find_term(t)
+
+        if posting_list is None:
+            continue
+
+        query_term_weight = get_query_weight(posting_list.unique_docids, term_frequencies[t])
+        if query_term_weight >= 1.2 :
+            expanded_terms.extend(query_expansion(t, terms))
+
+    expanded_terms = process(expanded_terms)
+    res = cosine_score(expanded_terms, relevant_docids)
     return res
 
 def split_query(query):
@@ -559,29 +590,21 @@ def split_query(query):
     # Weed out empty strings
     return [term for term in terms if term], is_boolean_query
 
-def query_expansion(query):
-    #Split the query into words
-    #Remove stop words
-    #Find the synonyms of each word and append them to a set, since some of the synonyms might be repetitive
-    #Add the set of synonyms to list of extended query words
-    #Convert the extended query list to extende query string
-    #Return the string
+def query_expansion(query, unexpanded_tokens_arr):
+    #Take in a word from the query
+    #Expand on the synonyms of the word
+    #return the set of synonyms
 
-    query_words = query.split()
     stop_words = set(stopwords.words('english'))
-    query_words = [word for word in query_words if not word in stop_words]
-    expanded_query = []
-    for word in query_words:
-        expanded_query.append(word)
-        syn_set = set()
-        for s in wordnet.synsets(word):
-            for l in s.lemmas():
+
+    syn_set = set()
+
+    for s in wordnet.synsets(query):
+        for l in s.lemmas():
+            if l.name() not in unexpanded_tokens_arr:
                 syn_set.add(l.name())
-        expanded_query.extend(syn_set)
 
-    new_query = ' '.join([str(word).lower() for word in expanded_query])
-
-    return new_query
+    return syn_set
 # Below are the code provided in the original Homework search.py file, with edits to run_search to use our implementation
 
 def usage():
