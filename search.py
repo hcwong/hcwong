@@ -82,7 +82,6 @@ def stem_query(arr):
 # Ranking
 
 def boost_score_based_on_field(field, score):
-    # TODO: Decide on an appropriate boost value
     court_boost = 1.5
     date_boost = 2
     title_boost = 4
@@ -121,9 +120,8 @@ def cosine_score(tokens_arr, relevant_docids):
     term_frequencies = Counter(tokens_arr) # the query's count vector for every of its terms, to obtain data for pointwise multiplication
     # Set of all relevant documents' top K (already processed) terms, and query's processed terms
 
-    # All terms inside are ALREADY PROCESSED aka filtered for punctuations, casefolded to lowercase, stemmed
+    # All terms inside this set are dictionary terms (ALREADY PROCESSED aka filtered for punctuations, casefolded to lowercase, stemmed)
     union_of_relevant_doc_top_terms = obtain_all_cos_score_terms(relevant_docids, tokens_arr)
-
 
     # Step 2: Obtain PostingList of interest
     is_entirely_phrasal = False # if False, should perform Rocchio for Query Refinement
@@ -155,7 +153,7 @@ def cosine_score(tokens_arr, relevant_docids):
         query_term_weight = get_query_weight(posting_list.unique_docids, term_frequencies[term]) # before/without Rocchio
 
         # Query Refinement: Rocchio Algorithm (Part 1: common terms with query)
-        # Want to use given relevant documents to get entry of the term in the refined query vector
+        # Want to use all given relevant documents to get entry of the term in the refined query vector
         if (query_type == "FREETEXT") and (len(relevant_docids) != 0):
             # We are doing query refinement for this current term; no need to do again later: remove it first!
             # current term is not processed -> Need to process first to compare
@@ -456,7 +454,9 @@ def query_parsing(terms_array):
 def parse_query(query, relevant_docids):
     terms_array, is_boolean_query = split_query(query)
     if is_boolean_query:
-        # Get the boolean results and then apply query parsing and apply rocchio on the relevant documents
+        # Get the boolean results
+        # (and then apply query parsing
+        # and then apply rocchio on the relevant documents)
         # Only apply latter 2 if not enough boolean results in the first place.
         # In desc order of importance: Original query -> query parsing -> rocchio
         # Merge their results and output accordingly according to the comparator function
@@ -469,7 +469,12 @@ def parse_query(query, relevant_docids):
         if len(boolean_results) < 1000:
             query_parse_results = query_parsing(terms_array)
         if len(boolean_results) + len(query_parse_results) < 1000:
-            rocchio_results = parse_free_text_query([], relevant_docids)
+            # break down all phrases into words, and add them in as individual freetext queries
+            all_single_words_in_phrases = []
+            for search_term in terms_array:
+                if " " in search_term:
+                    all_single_words_in_phrases.extend(search_term.split())
+            rocchio_results = parse_free_text_query(all_single_words_in_phrases, relevant_docids)
 
         merged_scores = {}
         for score, doc_id in boolean_results:
@@ -489,6 +494,7 @@ def parse_query(query, relevant_docids):
                 merged_scores[doc_id] += score
         return sorted([(score, doc_id) for doc_id, score in merged_scores.items()], key=functools.cmp_to_key(comparator))
     else:
+        # freetext query with possible Rocchio algorithm query refinement
         return parse_free_text_query(terms_array, relevant_docids)
 
 def get_ranking_for_boolean_query(posting_list, relevant_docids):
@@ -542,6 +548,7 @@ def parse_boolean_query(terms, relevant_docids):
         res_posting_list = find_term(first_term)
 
     if res_posting_list is None:
+        # short-circuit result for empty PostingList in an AND operation
         return []
 
     # Do merging for the posting lists of the rest of the terms
